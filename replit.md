@@ -2,7 +2,56 @@
 
 ## Overview
 
-This is a full-stack web application for tracking and managing delivery confirmations through messaging. The system provides a comprehensive dashboard for monitoring message delivery status, response rates, and customer communications. Built with React frontend and Express backend, it features real-time metrics, interactive charts, and message history management.
+This is a full-stack web application for tracking and managing delivery confirmations through messaging. The system provides a comprehensive dashboard for monitoring batch-level message activity, response rates, and daily file operations. Built with React frontend and Express backend, it features real-time metrics, interactive charts, and batch history management.
+
+## Three-Mode Architecture
+
+The application supports three operational modes:
+
+### 1. MOCKUP Mode (Default)
+- **Purpose**: Demos, design validation, and internal review
+- **Data Source**: Deterministic mock data with seeded random generation
+- **Features**: Full UI showcase with realistic-looking data
+- **Usage**: Set `MODE=MOCKUP` or leave unset (default)
+
+### 2. DEV Mode  
+- **Purpose**: Integration testing with backend database
+- **Data Source**: Connected to development SQL database
+- **Features**: API validation and data flow testing
+- **Usage**: Set `MODE=DEV` with database environment variables
+
+### 3. PROD Mode
+- **Purpose**: Live system for call center operations
+- **Data Source**: Connected to production SQL database
+- **Features**: Real customer data with security and logging
+- **Usage**: Set `MODE=PROD` with production database credentials
+
+## Environment Variables
+
+```bash
+# Operation Mode
+MODE=MOCKUP|DEV|PROD
+
+# Data Retention
+RETENTION_DAYS=30
+
+# Mockup Mode
+MOCK_DATA_SEED=12345
+
+# Development Database
+DEV_DB_HOST=localhost
+DEV_DB_PORT=5432
+DEV_DB_NAME=delivery_dev
+DEV_DB_USER=dev_user
+DEV_DB_PASSWORD=dev_password
+
+# Production Database
+PROD_DB_HOST=prod-server
+PROD_DB_PORT=5432
+PROD_DB_NAME=delivery_prod
+PROD_DB_USER=prod_user
+PROD_DB_PASSWORD=secure_password
+```
 
 ## User Preferences
 
@@ -34,9 +83,16 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Flow
 - Dashboard displays real-time metrics from aggregated daily statistics
-- Message history with filtering and pagination support
+- Batch history with tabbed interface (Sent/Received files) 
 - Chart data generation for trend analysis and category breakdowns
-- CSV export functionality for message data
+- CSV export functionality for individual batch files
+- 30-day automatic retention policy with cleanup
+
+### Batch-Based Architecture
+- **Sent Batches**: Daily files of confirmation messages sent to customers
+- **Received Batches**: Daily files of customer responses with categorization
+- **File Tracking**: Each batch has filename, customer count, and export capability
+- **Category Breakdown**: Responses categorized as confirmed/not-confirmed/questions/other
 
 ### Development Setup
 - **Build System**: Vite for frontend development with hot module replacement

@@ -1,16 +1,28 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, BarChart3 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCw, BarChart3, Settings } from "lucide-react";
 import MetricsOverview from "@/components/metrics-overview";
 import ChartsSection from "@/components/charts-section";
 import MessageHistory from "@/components/message-history";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
+interface SystemConfig {
+  mode: 'MOCKUP' | 'DEV' | 'PROD';
+  retentionDays: number;
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Get system configuration
+  const { data: systemConfig } = useQuery<SystemConfig>({
+    queryKey: ['/api/config'],
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   const { data: lastUpdated } = useQuery({
     queryKey: ['/api/dashboard/metrics'],
@@ -63,11 +75,31 @@ export default function Dashboard() {
                 <BarChart3 className="text-white text-lg h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900" data-testid="header-title">
-                  Delivery Dashboard
-                </h1>
+                <div className="flex items-center space-x-3">
+                  <h1 className="text-xl font-semibold text-gray-900" data-testid="header-title">
+                    Delivery Dashboard
+                  </h1>
+                  {systemConfig && (
+                    <Badge 
+                      className={`text-xs ${
+                        systemConfig.mode === 'PROD' 
+                          ? 'bg-green-100 text-green-800' 
+                          : systemConfig.mode === 'DEV'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-purple-100 text-purple-800'
+                      }`}
+                      data-testid="badge-mode"
+                    >
+                      <Settings className="w-3 h-3 mr-1" />
+                      {systemConfig.mode}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500 hidden sm:block">
                   LINE OA Confirmation Monitoring
+                  {systemConfig && (
+                    <span className="ml-2">• {systemConfig.retentionDays} day retention</span>
+                  )}
                 </p>
               </div>
             </div>

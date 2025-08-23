@@ -36,6 +36,14 @@ export const dailyStats = pgTable("daily_stats", {
   pending: integer("pending").notNull().default(0),
 });
 
+export const systemConfig = pgTable("system_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mode: text("mode").notNull(), // 'MOCKUP' | 'DEV' | 'PROD'
+  retentionDays: integer("retention_days").notNull().default(30),
+  mockDataSeed: integer("mock_data_seed").default(12345),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
 export const insertCustomerSchema = createInsertSchema(customers).omit({
   id: true,
 });
@@ -92,3 +100,48 @@ export type BatchHistoryFilters = {
   limit?: number;
   offset?: number;
 };
+
+// Environment-specific types
+export interface MockDataConfig {
+  seed: number;
+  daysOfHistory: number;
+  customersPerDay: {
+    min: number;
+    max: number;
+  };
+  responseRate: {
+    min: number;
+    max: number;
+  };
+  categories: {
+    confirmed: number;
+    notConfirmed: number;
+    questions: number;
+    other: number;
+  };
+}
+
+export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
+export type SystemConfig = typeof systemConfig.$inferSelect;
+
+// Environment modes
+export type OperationMode = 'MOCKUP' | 'DEV' | 'PROD';
+
+// Environment configuration
+export interface EnvironmentConfig {
+  mode: OperationMode;
+  retentionDays: number;
+  mockDataSeed?: number;
+  database?: {
+    host: string;
+    port: number;
+    database: string;
+    username: string;
+    password: string;
+  };
+}

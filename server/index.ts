@@ -1,10 +1,28 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { getEnvironmentConfig, getLogLevel } from "./config";
+
+// Initialize environment configuration
+const config = getEnvironmentConfig();
+log(`[Server] Starting in ${config.mode} mode`);
+log(`[Server] Log level: ${getLogLevel()}`);
+if (config.mockDataSeed) {
+  log(`[Server] Mock data seed: ${config.mockDataSeed}`);
+}
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Add environment info endpoint
+app.get("/api/config", (req, res) => {
+  res.json({
+    mode: config.mode,
+    retentionDays: config.retentionDays,
+    // Don't expose sensitive database config
+  });
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
