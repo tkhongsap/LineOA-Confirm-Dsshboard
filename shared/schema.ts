@@ -71,6 +71,7 @@ export type BatchWithSummary = Batch & {
 };
 
 export type DashboardMetrics = {
+  date: string; // Latest day's date
   totalSent: number;
   totalReceived: number;
   confirmed: number;

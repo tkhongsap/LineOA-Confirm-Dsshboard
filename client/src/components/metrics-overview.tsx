@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Inbox, CheckCircle, Clock, TrendingUp } from "lucide-react";
+import { Send, Inbox, CheckCircle, Clock, TrendingUp, Calendar } from "lucide-react";
 import { DashboardMetrics } from "@shared/schema";
 
 export default function MetricsOverview() {
@@ -23,30 +23,30 @@ export default function MetricsOverview() {
 
   const metricCards = [
     {
-      title: "Total Sent",
+      title: "Messages Sent",
       value: metrics?.totalSent || 0,
-      change: "+12%",
-      changeText: "vs yesterday",
+      change: null,
+      changeText: "delivery confirmations",
       icon: Send,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
       testId: "metric-total-sent"
     },
     {
-      title: "Total Received",
+      title: "Responses Received",
       value: metrics?.totalReceived || 0,
-      change: "+8%",
-      changeText: `${metrics?.responseRate.toFixed(1) || 0}% response rate`,
+      change: `${metrics?.responseRate.toFixed(1) || 0}%`,
+      changeText: "response rate",
       icon: Inbox,
       iconBg: "bg-green-50",
       iconColor: "text-green-600",
       testId: "metric-total-received"
     },
     {
-      title: "Confirmed",
+      title: "Confirmed Deliveries",
       value: metrics?.confirmed || 0,
-      change: "+15%",
-      changeText: `${metrics && metrics.totalReceived > 0 ? ((metrics.confirmed / metrics.totalReceived) * 100).toFixed(0) : 0}% of responses`,
+      change: `${metrics && metrics.totalReceived > 0 ? ((metrics.confirmed / metrics.totalReceived) * 100).toFixed(0) : 0}%`,
+      changeText: "of responses",
       icon: CheckCircle,
       iconBg: "bg-green-50",
       iconColor: "text-green-600",
@@ -54,10 +54,10 @@ export default function MetricsOverview() {
       testId: "metric-confirmed"
     },
     {
-      title: "Pending",
+      title: "Awaiting Response",
       value: metrics?.pending || 0,
-      change: null,
-      changeText: `${metrics && metrics.totalSent > 0 ? ((metrics.pending / metrics.totalSent) * 100).toFixed(1) : 0}% no response`,
+      change: `${metrics && metrics.totalSent > 0 ? ((metrics.pending / metrics.totalSent) * 100).toFixed(1) : 0}%`,
+      changeText: "no response yet",
       icon: Clock,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
@@ -66,8 +66,30 @@ export default function MetricsOverview() {
     }
   ];
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (dateStr === today.toISOString().split('T')[0]) {
+      return 'Today';
+    } else if (dateStr === yesterday.toISOString().split('T')[0]) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
   return (
     <section className="mb-8">
+      {metrics && (
+        <div className="mb-4 flex items-center text-sm text-gray-600">
+          <Calendar className="w-4 h-4 mr-2" />
+          <span>Daily numbers for {formatDate(metrics.date)}</span>
+          <span className="ml-2 text-gray-400">({metrics.date})</span>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {metricCards.map((metric, index) => (
           <Card

@@ -290,23 +290,45 @@ export class MockupStorage implements IStorage {
   }
 
   async getDashboardMetrics(): Promise<DashboardMetrics> {
-    const allStats = Array.from(this.dailyStats.values());
-    const totals = allStats.reduce(
-      (acc, stats) => ({
-        totalSent: acc.totalSent + stats.totalSent,
-        totalReceived: acc.totalReceived + stats.totalReceived,
-        confirmed: acc.confirmed + stats.confirmed,
-        notConfirmed: acc.notConfirmed + stats.notConfirmed,
-        questions: acc.questions + stats.questions,
-        other: acc.other + stats.other,
-        pending: acc.pending + stats.pending,
-      }),
-      { totalSent: 0, totalReceived: 0, confirmed: 0, notConfirmed: 0, questions: 0, other: 0, pending: 0 }
-    );
+    // Get the latest day's stats instead of totals
+    const today = new Date().toISOString().split('T')[0];
+    let latestStats = this.dailyStats.get(today);
+    
+    // If today's data doesn't exist, get the most recent day
+    if (!latestStats) {
+      const sortedDates = Array.from(this.dailyStats.keys()).sort().reverse();
+      const latestDate = sortedDates[0];
+      latestStats = this.dailyStats.get(latestDate);
+    }
+    
+    if (!latestStats) {
+      // Fallback if no data exists
+      return {
+        date: today,
+        totalSent: 0,
+        totalReceived: 0,
+        confirmed: 0,
+        notConfirmed: 0,
+        questions: 0,
+        other: 0,
+        pending: 0,
+        responseRate: 0
+      };
+    }
 
-    const responseRate = totals.totalSent > 0 ? (totals.totalReceived / totals.totalSent) * 100 : 0;
+    const responseRate = latestStats.totalSent > 0 ? (latestStats.totalReceived / latestStats.totalSent) * 100 : 0;
 
-    return { ...totals, responseRate };
+    return {
+      date: latestStats.date,
+      totalSent: latestStats.totalSent,
+      totalReceived: latestStats.totalReceived,
+      confirmed: latestStats.confirmed,
+      notConfirmed: latestStats.notConfirmed,
+      questions: latestStats.questions,
+      other: latestStats.other,
+      pending: latestStats.pending,
+      responseRate
+    };
   }
 
   async getChartData(days: number = 7): Promise<ChartData[]> {

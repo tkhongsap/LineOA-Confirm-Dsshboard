@@ -110,8 +110,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardMetrics(): Promise<DashboardMetrics> {
-    // TODO: Implement actual database aggregation query
-    // Example: SELECT SUM(total_sent), SUM(total_received), ... FROM daily_stats
+    // TODO: Implement actual database query for latest day's stats
+    // Example: SELECT * FROM daily_stats ORDER BY date DESC LIMIT 1
     throw new Error("Database operations not yet implemented - using mockup mode for demo");
   }
 
