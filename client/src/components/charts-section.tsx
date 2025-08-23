@@ -10,7 +10,8 @@ export default function ChartsSection() {
   const [chartPeriod, setChartPeriod] = useState("7");
 
   const { data: chartData, isLoading: chartLoading } = useQuery<ChartData[]>({
-    queryKey: ['/api/dashboard/chart-data', { days: parseInt(chartPeriod) }],
+    queryKey: ['/api/dashboard/chart-data', chartPeriod],
+    queryFn: () => fetch(`/api/dashboard/chart-data?days=${chartPeriod}`).then(res => res.json()),
   });
 
   const { data: categoryData, isLoading: categoryLoading } = useQuery<CategoryData[]>({

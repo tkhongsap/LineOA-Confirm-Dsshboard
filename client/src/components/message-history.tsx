@@ -24,7 +24,15 @@ export default function MessageHistory() {
     messages: MessageWithCustomer[];
     total: number;
   }>({
-    queryKey: ['/api/messages', { status, search, limit, offset }],
+    queryKey: ['/api/messages', status, search, limit, offset],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (status !== 'all') params.set('status', status);
+      if (search) params.set('search', search);
+      params.set('limit', limit.toString());
+      params.set('offset', offset.toString());
+      return fetch(`/api/messages?${params.toString()}`).then(res => res.json());
+    },
   });
 
   const handleSearch = (value: string) => {
