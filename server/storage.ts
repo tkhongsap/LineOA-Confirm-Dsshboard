@@ -1,11 +1,12 @@
 import { 
   type Customer, 
-  type Message, 
+  type Batch, 
   type DailyStats,
   type InsertCustomer, 
-  type InsertMessage, 
+  type InsertBatch, 
   type InsertDailyStats,
-  type MessageWithCustomer,
+  type BatchWithSummary,
+  type BatchHistoryFilters,
   type DashboardMetrics,
   type ChartData,
   type CategoryData
@@ -18,16 +19,11 @@ export interface IStorage {
   getCustomerByPhone(phone: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   
-  // Message operations
-  getMessage(id: string): Promise<Message | undefined>;
-  getMessages(filters?: {
-    status?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ messages: MessageWithCustomer[]; total: number }>;
-  createMessage(message: InsertMessage): Promise<Message>;
-  updateMessage(id: string, updates: Partial<Message>): Promise<Message | undefined>;
+  // Batch operations
+  getBatch(id: string): Promise<Batch | undefined>;
+  getBatches(filters?: BatchHistoryFilters): Promise<{ batches: BatchWithSummary[]; total: number }>;
+  createBatch(batch: InsertBatch): Promise<Batch>;
+  deleteBatchesOlderThan(days: number): Promise<number>;
   
   // Daily stats operations
   getDailyStats(date: string): Promise<DailyStats | undefined>;
@@ -42,12 +38,12 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private customers: Map<string, Customer>;
-  private messages: Map<string, Message>;
+  private batches: Map<string, Batch>;
   private dailyStats: Map<string, DailyStats>;
 
   constructor() {
     this.customers = new Map();
-    this.messages = new Map();
+    this.batches = new Map();
     this.dailyStats = new Map();
     this.seedData();
   }
@@ -65,130 +61,79 @@ export class MemStorage implements IStorage {
       { name: "Suzuki Mayumi", phone: "+81-80-4173-9258" }
     ];
 
-    const customers: Customer[] = [];
     sampleCustomers.forEach(customerData => {
       const id = randomUUID();
       const customer: Customer = { id, ...customerData };
       this.customers.set(id, customer);
-      customers.push(customer);
     });
 
-    // Create sample messages for the last 7 days
+    // Create sample batches for the last 7 days
     const today = new Date();
-    const statuses = ['confirmed', 'not-confirmed', 'pending', 'question', 'other'];
-    const statusWeights = [0.6, 0.15, 0.15, 0.08, 0.02]; // Probability distribution
-
+    
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const date = new Date(today);
       date.setDate(date.getDate() - dayOffset);
       const dateStr = date.toISOString().split('T')[0];
 
-      let dailySent = 0;
-      let dailyReceived = 0;
-      let dailyConfirmed = 0;
-      let dailyNotConfirmed = 0;
-      let dailyQuestions = 0;
-      let dailyOther = 0;
-      let dailyPending = 0;
+      // Create sent batch for this day
+      const sentCustomerCount = Math.floor(Math.random() * 51) + 150; // 150-200 customers
+      const sentBatchId = randomUUID();
+      const sentBatch: Batch = {
+        id: sentBatchId,
+        date: dateStr,
+        type: 'sent',
+        fileName: `delivery_confirmations_${dateStr}.csv`,
+        channel: 'LINE OA',
+        customerCount: sentCustomerCount,
+        confirmed: 0,
+        notConfirmed: 0,
+        questions: 0,
+        other: 0,
+        createdAt: new Date(date.getTime() + 9 * 60 * 60 * 1000) // 9 AM
+      };
+      this.batches.set(sentBatchId, sentBatch);
 
-      // Generate 150-200 messages per day
-      const messagesPerDay = Math.floor(Math.random() * 51) + 150;
+      // Create received batch for this day
+      const responseRate = 0.7 + Math.random() * 0.15; // 70-85% response rate
+      const totalResponses = Math.floor(sentCustomerCount * responseRate);
       
-      for (let i = 0; i < messagesPerDay; i++) {
-        const customer = customers[Math.floor(Math.random() * customers.length)];
-        
-        // Sent message
-        const sentTime = new Date(date);
-        sentTime.setHours(9, Math.floor(Math.random() * 60), 0, 0);
-        
-        const sentMessageId = randomUUID();
-        const sentMessage: Message = {
-          id: sentMessageId,
-          customerId: customer.id,
-          type: 'sent',
-          content: 'お客様への配送確認をお願いいたします。商品は本日配送予定です。受け取り可能でしょうか？',
-          status: 'pending',
-          sentAt: sentTime,
-          receivedAt: null,
-          responseTime: null
-        };
-        this.messages.set(sentMessageId, sentMessage);
-        dailySent++;
+      // Distribute responses across categories
+      const confirmed = Math.floor(totalResponses * 0.6);
+      const notConfirmed = Math.floor(totalResponses * 0.15);
+      const questions = Math.floor(totalResponses * 0.08);
+      const other = totalResponses - confirmed - notConfirmed - questions;
 
-        // 70% chance of receiving a response
-        if (Math.random() < 0.715) {
-          const responseDelay = Math.floor(Math.random() * 480) + 30; // 30 minutes to 8 hours
-          const receivedTime = new Date(sentTime.getTime() + responseDelay * 60000);
-          
-          // Select status based on weights
-          let status = 'pending';
-          const rand = Math.random();
-          let cumulativeWeight = 0;
-          for (let j = 0; j < statuses.length; j++) {
-            cumulativeWeight += statusWeights[j];
-            if (rand < cumulativeWeight) {
-              status = statuses[j];
-              break;
-            }
-          }
-
-          const receivedMessageId = randomUUID();
-          const receivedMessage: Message = {
-            id: receivedMessageId,
-            customerId: customer.id,
-            type: 'received',
-            content: this.getResponseContent(status),
-            status: status,
-            sentAt: sentTime,
-            receivedAt: receivedTime,
-            responseTime: responseDelay
-          };
-          this.messages.set(receivedMessageId, receivedMessage);
-          dailyReceived++;
-
-          // Update counters
-          switch (status) {
-            case 'confirmed': dailyConfirmed++; break;
-            case 'not-confirmed': dailyNotConfirmed++; break;
-            case 'question': dailyQuestions++; break;
-            case 'other': dailyOther++; break;
-          }
-
-          // Update the sent message status
-          sentMessage.status = status;
-          sentMessage.receivedAt = receivedTime;
-          sentMessage.responseTime = responseDelay;
-        } else {
-          dailyPending++;
-        }
-      }
+      const receivedBatchId = randomUUID();
+      const receivedBatch: Batch = {
+        id: receivedBatchId,
+        date: dateStr,
+        type: 'received',
+        fileName: `delivery_responses_${dateStr}.csv`,
+        channel: 'LINE OA',
+        customerCount: totalResponses,
+        confirmed: confirmed,
+        notConfirmed: notConfirmed,
+        questions: questions,
+        other: other,
+        createdAt: new Date(date.getTime() + 18 * 60 * 60 * 1000) // 6 PM
+      };
+      this.batches.set(receivedBatchId, receivedBatch);
 
       // Create daily stats
       const dailyStatsId = randomUUID();
       const stats: DailyStats = {
         id: dailyStatsId,
         date: dateStr,
-        totalSent: dailySent,
-        totalReceived: dailyReceived,
-        confirmed: dailyConfirmed,
-        notConfirmed: dailyNotConfirmed,
-        questions: dailyQuestions,
-        other: dailyOther,
-        pending: dailyPending
+        totalSent: sentCustomerCount,
+        totalReceived: totalResponses,
+        confirmed: confirmed,
+        notConfirmed: notConfirmed,
+        questions: questions,
+        other: other,
+        pending: sentCustomerCount - totalResponses
       };
       this.dailyStats.set(dateStr, stats);
     }
-  }
-
-  private getResponseContent(status: string): string {
-    const responses = {
-      confirmed: ['はい、受け取れます', '大丈夫です', 'お願いします', 'はい'],
-      'not-confirmed': ['今日は受け取れません', 'いません', 'また後日', '不在です'],
-      question: ['何時頃ですか？', '時間の変更は可能ですか？', '場所はどちらですか？', '連絡先を教えてください'],
-      other: ['ありがとうございます', '了解しました', 'よろしく', 'OK']
-    };
-    const options = responses[status as keyof typeof responses] || ['その他の返信'];
-    return options[Math.floor(Math.random() * options.length)];
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
@@ -206,66 +151,88 @@ export class MemStorage implements IStorage {
     return customer;
   }
 
-  async getMessage(id: string): Promise<Message | undefined> {
-    return this.messages.get(id);
+  async getBatch(id: string): Promise<Batch | undefined> {
+    return this.batches.get(id);
   }
 
-  async getMessages(filters: {
-    status?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<{ messages: MessageWithCustomer[]; total: number }> {
-    let allMessages = Array.from(this.messages.values());
+  async getBatches(filters: BatchHistoryFilters = {}): Promise<{ batches: BatchWithSummary[]; total: number }> {
+    let allBatches = Array.from(this.batches.values());
     
-    // Filter by status
-    if (filters.status && filters.status !== 'all') {
-      allMessages = allMessages.filter(m => m.status === filters.status);
+    // Filter by type
+    if (filters.type && filters.type !== 'all') {
+      allBatches = allBatches.filter(b => b.type === filters.type);
     }
 
-    // Filter by search term (customer name or phone)
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      allMessages = allMessages.filter(message => {
-        const customer = this.customers.get(message.customerId);
-        if (!customer) return false;
-        return customer.name.toLowerCase().includes(searchLower) ||
-               customer.phone.includes(filters.search!);
-      });
+    // Filter by date range
+    if (filters.dateFrom) {
+      allBatches = allBatches.filter(b => b.date >= filters.dateFrom!);
+    }
+    if (filters.dateTo) {
+      allBatches = allBatches.filter(b => b.date <= filters.dateTo!);
     }
 
-    // Sort by sentAt descending
-    allMessages.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    // Sort by date descending (newest first)
+    allBatches.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const total = allMessages.length;
+    const total = allBatches.length;
     const limit = filters.limit || 50;
     const offset = filters.offset || 0;
     
-    const paginatedMessages = allMessages.slice(offset, offset + limit);
+    const paginatedBatches = allBatches.slice(offset, offset + limit);
     
-    // Join with customer data
-    const messagesWithCustomer: MessageWithCustomer[] = paginatedMessages.map(message => {
-      const customer = this.customers.get(message.customerId)!;
-      return { ...message, customer };
+    // Add summary data for received batches
+    const batchesWithSummary: BatchWithSummary[] = paginatedBatches.map(batch => {
+      if (batch.type === 'received') {
+        return {
+          ...batch,
+          totalResponses: batch.confirmed + batch.notConfirmed + batch.questions + batch.other
+        };
+      }
+      return batch;
     });
 
-    return { messages: messagesWithCustomer, total };
+    return { batches: batchesWithSummary, total };
   }
 
-  async createMessage(insertMessage: InsertMessage): Promise<Message> {
+  async createBatch(insertBatch: InsertBatch): Promise<Batch> {
     const id = randomUUID();
-    const message: Message = { ...insertMessage, id };
-    this.messages.set(id, message);
-    return message;
+    const batch: Batch = { 
+      id,
+      date: insertBatch.date,
+      type: insertBatch.type,
+      fileName: insertBatch.fileName,
+      channel: insertBatch.channel || 'LINE OA',
+      customerCount: insertBatch.customerCount || 0,
+      confirmed: insertBatch.confirmed || 0,
+      notConfirmed: insertBatch.notConfirmed || 0,
+      questions: insertBatch.questions || 0,
+      other: insertBatch.other || 0,
+      createdAt: new Date()
+    };
+    this.batches.set(id, batch);
+    return batch;
   }
 
-  async updateMessage(id: string, updates: Partial<Message>): Promise<Message | undefined> {
-    const message = this.messages.get(id);
-    if (!message) return undefined;
+  async deleteBatchesOlderThan(days: number): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    let deletedCount = 0;
+    const entriesToDelete: string[] = [];
     
-    const updatedMessage = { ...message, ...updates };
-    this.messages.set(id, updatedMessage);
-    return updatedMessage;
+    this.batches.forEach((batch, id) => {
+      if (batch.date < cutoffStr) {
+        entriesToDelete.push(id);
+      }
+    });
+    
+    entriesToDelete.forEach(id => {
+      this.batches.delete(id);
+      deletedCount++;
+    });
+    
+    return deletedCount;
   }
 
   async getDailyStats(date: string): Promise<DailyStats | undefined> {
@@ -286,7 +253,17 @@ export class MemStorage implements IStorage {
       return updated;
     } else {
       const id = randomUUID();
-      const stats: DailyStats = { ...insertStats, id };
+      const stats: DailyStats = { 
+        id,
+        date: insertStats.date,
+        totalSent: insertStats.totalSent || 0,
+        totalReceived: insertStats.totalReceived || 0,
+        confirmed: insertStats.confirmed || 0,
+        notConfirmed: insertStats.notConfirmed || 0,
+        questions: insertStats.questions || 0,
+        other: insertStats.other || 0,
+        pending: insertStats.pending || 0
+      };
       this.dailyStats.set(insertStats.date, stats);
       return stats;
     }

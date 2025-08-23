@@ -35,69 +35,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get messages with filtering and pagination
-  app.get("/api/messages", async (req, res) => {
+  // Get batches with filtering and pagination
+  app.get("/api/batches", async (req, res) => {
     try {
       const filters = {
-        status: req.query.status as string,
-        search: req.query.search as string,
+        type: req.query.type as 'sent' | 'received' | 'all',
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
         limit: parseInt(req.query.limit as string) || 20,
         offset: parseInt(req.query.offset as string) || 0,
       };
 
-      const result = await storage.getMessages(filters);
+      const result = await storage.getBatches(filters);
       res.json(result);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch messages" });
+      res.status(500).json({ error: "Failed to fetch batches" });
     }
   });
 
-  // Export messages as CSV
-  app.get("/api/messages/export", async (req, res) => {
+  // Export batch file
+  app.get("/api/batches/:id/export", async (req, res) => {
     try {
-      const filters = {
-        status: req.query.status as string,
-        search: req.query.search as string,
-      };
+      const batch = await storage.getBatch(req.params.id);
+      if (!batch) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
 
-      const result = await storage.getMessages(filters);
+      // Generate CSV content based on batch type
+      let headers: string[];
+      let csvRows: string[];
       
-      // Convert to CSV format
-      const headers = ['Customer Name', 'Phone', 'Sent At', 'Status', 'Response Time', 'Message Content'];
-      const csvRows = [headers.join(',')];
-      
-      result.messages.forEach(message => {
-        const row = [
-          `"${message.customer.name}"`,
-          `"${message.customer.phone}"`,
-          `"${message.sentAt.toISOString()}"`,
-          `"${message.status}"`,
-          message.responseTime ? `"${message.responseTime} minutes"` : '""',
-          `"${message.content.replace(/"/g, '""')}"`,
+      if (batch.type === 'sent') {
+        headers = ['Date', 'File Name', 'Channel', 'Customer Count'];
+        csvRows = [
+          headers.join(','),
+          [
+            `"${batch.date}"`,
+            `"${batch.fileName}"`,
+            `"${batch.channel}"`,
+            `"${batch.customerCount}"`,
+          ].join(',')
         ];
-        csvRows.push(row.join(','));
-      });
+      } else {
+        headers = ['Date', 'File Name', 'Channel', 'Total Responses', 'Confirmed', 'Not Confirmed', 'Questions', 'Other'];
+        csvRows = [
+          headers.join(','),
+          [
+            `"${batch.date}"`,
+            `"${batch.fileName}"`,
+            `"${batch.channel}"`,
+            `"${batch.confirmed + batch.notConfirmed + batch.questions + batch.other}"`,
+            `"${batch.confirmed}"`,
+            `"${batch.notConfirmed}"`,
+            `"${batch.questions}"`,
+            `"${batch.other}"`,
+          ].join(',')
+        ];
+      }
 
       const csvContent = csvRows.join('\n');
       
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=delivery_confirmations_${new Date().toISOString().split('T')[0]}.csv`);
+      res.setHeader('Content-Disposition', `attachment; filename=${batch.fileName}`);
       res.send(csvContent);
     } catch (error) {
-      res.status(500).json({ error: "Failed to export messages" });
+      res.status(500).json({ error: "Failed to export batch" });
     }
   });
 
-  // Get single message
-  app.get("/api/messages/:id", async (req, res) => {
+  // Get single batch
+  app.get("/api/batches/:id", async (req, res) => {
     try {
-      const message = await storage.getMessage(req.params.id);
-      if (!message) {
-        return res.status(404).json({ error: "Message not found" });
+      const batch = await storage.getBatch(req.params.id);
+      if (!batch) {
+        return res.status(404).json({ error: "Batch not found" });
       }
-      res.json(message);
+      res.json(batch);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch message" });
+      res.status(500).json({ error: "Failed to fetch batch" });
     }
   });
 

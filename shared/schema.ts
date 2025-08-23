@@ -9,15 +9,19 @@ export const customers = pgTable("customers", {
   phone: text("phone").notNull().unique(),
 });
 
-export const messages = pgTable("messages", {
+export const batches = pgTable("batches", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  date: text("date").notNull(), // YYYY-MM-DD format
   type: text("type").notNull(), // 'sent' | 'received'
-  content: text("content").notNull(),
-  status: text("status").notNull(), // 'pending' | 'confirmed' | 'not-confirmed' | 'question' | 'other'
-  sentAt: timestamp("sent_at").notNull(),
-  receivedAt: timestamp("received_at"),
-  responseTime: integer("response_time"), // in minutes
+  fileName: text("file_name").notNull(),
+  channel: text("channel").notNull().default('LINE OA'),
+  customerCount: integer("customer_count").notNull().default(0),
+  // For received batches - response breakdown
+  confirmed: integer("confirmed").notNull().default(0),
+  notConfirmed: integer("not_confirmed").notNull().default(0),
+  questions: integer("questions").notNull().default(0),
+  other: integer("other").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const dailyStats = pgTable("daily_stats", {
@@ -36,8 +40,9 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
   id: true,
 });
 
-export const insertMessageSchema = createInsertSchema(messages).omit({
+export const insertBatchSchema = createInsertSchema(batches).omit({
   id: true,
+  createdAt: true,
 });
 
 export const insertDailyStatsSchema = createInsertSchema(dailyStats).omit({
@@ -45,16 +50,16 @@ export const insertDailyStatsSchema = createInsertSchema(dailyStats).omit({
 });
 
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
-export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type InsertBatch = z.infer<typeof insertBatchSchema>;
 export type InsertDailyStats = z.infer<typeof insertDailyStatsSchema>;
 
 export type Customer = typeof customers.$inferSelect;
-export type Message = typeof messages.$inferSelect;
+export type Batch = typeof batches.$inferSelect;
 export type DailyStats = typeof dailyStats.$inferSelect;
 
 // Combined types for API responses
-export type MessageWithCustomer = Message & {
-  customer: Customer;
+export type BatchWithSummary = Batch & {
+  totalResponses?: number;
 };
 
 export type DashboardMetrics = {
@@ -78,4 +83,12 @@ export type CategoryData = {
   name: string;
   value: number;
   color: string;
+};
+
+export type BatchHistoryFilters = {
+  type?: 'sent' | 'received' | 'all';
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
 };
