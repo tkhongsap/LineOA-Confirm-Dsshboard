@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run check:*)"
+      "Bash(npm run check:*)",
+      "Read(//home/runner/.claude/**)"
     ],
     "deny": [],
     "ask": []
