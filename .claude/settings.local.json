@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run check:*)",
-      "Read(//home/runner/.claude/**)"
+      "Read(//home/runner/.claude/**)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
